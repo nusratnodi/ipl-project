@@ -1,142 +1,46 @@
-const API = 'api/products.php';
+// JS is used only for UI animations and alerts.
+// All form submissions and data handling go through PHP.
 
-const form        = document.getElementById('product-form');
-const formTitle   = document.getElementById('form-title');
-const idInput     = document.getElementById('product-id');
-const nameInput   = document.getElementById('name');
-const priceInput  = document.getElementById('price');
-const descInput   = document.getElementById('description');
-const submitBtn   = document.getElementById('submit-btn');
-const cancelBtn   = document.getElementById('cancel-btn');
-const refreshBtn  = document.getElementById('refresh-btn');
-const tbody       = document.getElementById('products-tbody');
-const message     = document.getElementById('form-message');
+document.addEventListener('DOMContentLoaded', () => {
 
-function showMessage(text, type = 'success') {
-  message.textContent = text;
-  message.className = 'message ' + type;
-  if (text) setTimeout(() => { message.textContent = ''; message.className = 'message'; }, 3000);
-}
+  // Staggered fade-in entrance for cards
+  document.querySelectorAll('.js-fade-in').forEach((el, i) => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(14px)';
+    requestAnimationFrame(() => {
+      el.style.transition = 'opacity 0.55s ease, transform 0.55s ease';
+      el.style.transitionDelay = (i * 90) + 'ms';
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0)';
+    });
+  });
 
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+  // Delete confirmation
+  document.querySelectorAll('form.js-delete').forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      if (!confirm('Delete this attendance record?\nThis action cannot be undone.')) {
+        e.preventDefault();
+      }
+    });
+  });
 
-function resetForm() {
-  form.reset();
-  idInput.value = '';
-  formTitle.textContent = 'Add Product';
-  submitBtn.textContent = 'Save';
-  cancelBtn.classList.add('hidden');
-}
+  // Shake form fields on HTML5 validation failure
+  document.querySelectorAll('form.js-form').forEach((form) => {
+    form.addEventListener(
+      'invalid',
+      (e) => {
+        const el = e.target;
+        el.classList.remove('shake');
+        // force reflow so the animation can replay
+        void el.offsetWidth;
+        el.classList.add('shake');
+      },
+      true
+    );
+  });
 
-async function apiCall(action, options = {}) {
-  const url = `${API}?action=${action}` + (options.id ? `&id=${options.id}` : '');
-  const init = { method: options.method || 'GET' };
-  if (options.body) {
-    init.headers = { 'Content-Type': 'application/json' };
-    init.body = JSON.stringify(options.body);
-  }
-  const res = await fetch(url, init);
-  const json = await res.json().catch(() => ({ ok: false, error: 'Invalid JSON response' }));
-  if (!res.ok || !json.ok) throw new Error(json.error || `Request failed (${res.status})`);
-  return json;
-}
-
-async function loadProducts() {
-  tbody.innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
-  try {
-    const { data } = await apiCall('list');
-    renderProducts(data);
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty">Error: ${escapeHtml(err.message)}</td></tr>`;
-  }
-}
-
-function renderProducts(items) {
-  if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">No products yet — add one above.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = items.map(p => `
-    <tr>
-      <td>${p.id}</td>
-      <td>${escapeHtml(p.name)}</td>
-      <td>$${Number(p.price).toFixed(2)}</td>
-      <td>${escapeHtml(p.description || '')}</td>
-      <td>
-        <button class="btn btn-edit" data-edit="${p.id}">Edit</button>
-        <button class="btn btn-delete" data-delete="${p.id}">Delete</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-async function startEdit(id) {
-  try {
-    const { data } = await apiCall('get', { id });
-    idInput.value     = data.id;
-    nameInput.value   = data.name;
-    priceInput.value  = data.price;
-    descInput.value   = data.description || '';
-    formTitle.textContent = `Edit Product #${data.id}`;
-    submitBtn.textContent = 'Update';
-    cancelBtn.classList.remove('hidden');
+  // Smooth scroll to top when entering edit mode (?edit=...)
+  if (new URLSearchParams(window.location.search).has('edit')) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  } catch (err) {
-    showMessage(err.message, 'error');
-  }
-}
-
-async function deleteProduct(id) {
-  if (!confirm(`Delete product #${id}?`)) return;
-  try {
-    await apiCall('delete', { method: 'POST', body: { id: Number(id) } });
-    showMessage('Product deleted.', 'success');
-    loadProducts();
-  } catch (err) {
-    showMessage(err.message, 'error');
-  }
-}
-
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const payload = {
-    name: nameInput.value.trim(),
-    price: parseFloat(priceInput.value) || 0,
-    description: descInput.value.trim(),
-  };
-  const id = idInput.value;
-  try {
-    if (id) {
-      payload.id = Number(id);
-      await apiCall('update', { method: 'POST', body: payload });
-      showMessage('Product updated.', 'success');
-    } else {
-      await apiCall('create', { method: 'POST', body: payload });
-      showMessage('Product added.', 'success');
-    }
-    resetForm();
-    loadProducts();
-  } catch (err) {
-    showMessage(err.message, 'error');
   }
 });
-
-cancelBtn.addEventListener('click', resetForm);
-refreshBtn.addEventListener('click', loadProducts);
-
-tbody.addEventListener('click', (e) => {
-  const editId = e.target.dataset.edit;
-  const delId  = e.target.dataset.delete;
-  if (editId) startEdit(editId);
-  if (delId)  deleteProduct(delId);
-});
-
-loadProducts();

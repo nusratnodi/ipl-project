@@ -1,86 +1,93 @@
-# Single-Page CRUD — PHP + JS + MySQL (XAMPP)
+# Student Attendance — PHP + MySQL + JS (XAMPP)
 
-A simple single-page Products CRUD with a sliding banner titled **"This is my project"**.
+A small student-attendance tracker.
 
-## Stack
-
-- **PHP** (PDO) — backend REST-style API
-- **MySQL** — database
-- **Vanilla JS** (fetch API) — frontend, no frameworks
-- **XAMPP** — local environment
+| Layer                | Technology         |
+|----------------------|--------------------|
+| User Interface       | HTML / CSS         |
+| Animations / alerts  | JavaScript (+ `alert()`) |
+| Data processing      | PHP (mysqli, CRUD) |
+| Data storage         | MySQL              |
 
 ## Folder structure
 
 ```
 single-page-project/
-├── index.html             # Single-page UI
-├── css/style.css          # Styles + sliding banner animation
-├── js/app.js              # AJAX CRUD logic
-├── api/
-│   ├── db.php             # PDO connection
-│   └── products.php       # CRUD endpoints
-├── sql/setup.sql          # Database & table setup
+├── index.php             # List + create/update form
+├── delete.php            # POST-only delete handler
+├── connection.php        # mysqli connection ($name, $user_name, $password, $db_name, $conn)
+├── css/style.css         # All styles
+├── js/app.js             # UI animations only
+├── sql/setup.sql         # Database & table
 └── README.md
 ```
 
+## Backend coding pattern
+
+All PHP files follow the same simple pattern:
+
+```php
+include("connection.php");
+
+if (isset($_POST['submit'])) {
+    $field = trim($_POST['field']);
+
+    if (empty($field)) {
+        echo "<script>alert('All fields are required!');</script>";
+    }
+    else {
+        $sql = "INSERT INTO table_name(col) VALUES('$field')";
+        $result = mysqli_query($conn, $sql);
+        if ($result)
+            echo "<script>alert('Successful!');</script>";
+        else
+            echo "<script>alert('Failed!');</script>";
+    }
+}
+```
+
+- mysqli (procedural) — `mysqli_query`, `mysqli_num_rows`, `mysqli_fetch_assoc`, `mysqli_affected_rows`.
+- Variable names from [connection.php](connection.php): `$name`, `$user_name`, `$password`, `$db_name`, `$conn`.
+- Form submit button always has `name="submit"`, checked with `isset($_POST['submit'])`.
+- All input collected with `trim($_POST['x'])`.
+- User feedback via `echo "<script>alert('…');</script>"`.
+
 ## Setup (XAMPP)
 
-### 1. Copy the project into htdocs
+1. Copy this folder to `C:\xampp\htdocs\single-page-project\`.
+2. Start **Apache** and **MySQL** from the XAMPP Control Panel.
+3. In phpMyAdmin (<http://localhost/phpmyadmin>), open **SQL** and run [sql/setup.sql](sql/setup.sql). This creates the `attendance_app` database and the `attendance` table with 3 sample rows.
+4. Open <http://localhost/single-page-project/>.
 
-Copy the entire `single-page-project` folder into your XAMPP `htdocs` directory:
+Default DB credentials in [connection.php](connection.php) match XAMPP defaults:
 
-```
-C:\xampp\htdocs\single-page-project\
-```
-
-### 2. Start Apache & MySQL
-
-Open the **XAMPP Control Panel** and click **Start** for both `Apache` and `MySQL`.
-
-### 3. Create the database
-
-Open <http://localhost/phpmyadmin> in your browser, then:
-
-- Click the **SQL** tab
-- Paste the contents of `sql/setup.sql`
-- Click **Go**
-
-(Or import the file via the **Import** tab.)
-
-This creates the `crud_app` database, the `products` table, and inserts 3 sample rows.
-
-### 4. (Optional) DB credentials
-
-The default XAMPP MySQL config is used:
-
-- Host: `127.0.0.1`
+- Host: `localhost`
 - User: `root`
 - Password: *(empty)*
-- Database: `crud_app`
+- Database: `attendance_app`
 
-If yours differs, edit `api/db.php`.
+## CRUD operations
 
-### 5. Open the app
+| Op     | Where                       | How                                          |
+|--------|-----------------------------|----------------------------------------------|
+| Create | [index.php](index.php) form | POST with empty hidden `id` → `INSERT`       |
+| Read   | [index.php](index.php) table| `SELECT … ORDER BY date DESC`                |
+| Update | `?edit=<id>` then form POST | POST with hidden `id` filled in → `UPDATE`   |
+| Delete | Delete button (form POST)   | [delete.php](delete.php) → `DELETE`          |
 
-<http://localhost/single-page-project/>
+## JavaScript
 
-## Features
+[js/app.js](js/app.js) handles only UI animations:
 
-- **Sliding banner** — animated title with a slide-in + gentle float, plus a moving shine effect
-- **Create** — add a new product (name, price, description)
-- **Read** — list all products in a table, newest first
-- **Update** — click **Edit** to load a product into the form
-- **Delete** — click **Delete** to remove a product (with confirmation)
-- **No page reloads** — everything runs through `fetch()`
+1. Staggered fade-in entrance for cards.
+2. `confirm()` prompt before any `form.js-delete` submits.
+3. Shake animation on inputs that fail HTML5 validation.
+4. Smooth scroll to top when entering edit mode (`?edit=…`).
 
-## API endpoints
+Backend success/failure messages are shown by `<script>alert(...)</script>` echoed by PHP.
 
-All under `api/products.php?action=...`:
+## Security note
 
-| Method | Action   | Body                                    | Response                   |
-|--------|----------|-----------------------------------------|----------------------------|
-| GET    | `list`   | —                                       | `{ok, data: [...]}`        |
-| GET    | `get`    | `?id=N`                                 | `{ok, data: {...}}`        |
-| POST   | `create` | `{name, price, description}`            | `{ok, id}`                 |
-| POST   | `update` | `{id, name, price, description}`        | `{ok, updated}`            |
-| POST   | `delete` | `{id}`                                  | `{ok, deleted}`            |
+This code follows a beginner-friendly tutorial style: inline string SQL interpolation
+(`"... WHERE id='$id'"`). That is **vulnerable to SQL injection**. For production,
+use mysqli prepared statements (`$stmt = mysqli_prepare(...)`, `mysqli_stmt_bind_param`).
